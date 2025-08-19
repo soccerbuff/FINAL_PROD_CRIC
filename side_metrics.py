@@ -343,10 +343,15 @@ def calculate_stride_length_at_ffc(data):
     if ffc_idx is None:
         return None
     kps = data[ffc_idx]['keypoints']
-    left_ankle = (kps['left_ankle']['x'], kps['left_ankle']['y'])
-    right_ankle = (kps['right_ankle']['x'], kps['right_ankle']['y'])
-    stride_length = ((left_ankle[0] - right_ankle[0])**2 + (left_ankle[1] - right_ankle[1])**2)**0.5
-    return stride_length, ffc_idx, (left_ankle, right_ankle)
+    # Use only ankle x-coordinates for stride length
+    left_ankle = kps.get('left_ankle')
+    right_ankle = kps.get('right_ankle')
+    if not left_ankle or not right_ankle:
+        return None
+    stride_length_x = abs(left_ankle['x'] - right_ankle['x'])
+    left_pt = (left_ankle['x'], left_ankle['y'])
+    right_pt = (right_ankle['x'], right_ankle['y'])
+    return stride_length_x, ffc_idx, (left_pt, right_pt)
 
 def calculate_bowling_arm_hyperextension(data):
     bfc_leg, ffc_leg, bowling_arm, lead_arm = get_bfc_ffc_arms(data)
