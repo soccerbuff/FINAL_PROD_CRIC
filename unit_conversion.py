@@ -85,12 +85,12 @@ def px_per_sec_to_km_per_hr(px_per_sec, scale_factor):
 
 def convert_side_view_metrics(metrics, data):
     """
-    Convert side view metrics using FRAME-SPECIFIC scaling.
-    Uses right elbow to wrist distance as reference for each frame.
+    Convert side view metrics using MEDIAN scaling.
+    Uses right elbow to wrist distance as reference, calculating median scale factor across all frames.
     """
     converted_metrics = {}
     
-    # Calculate scale factors for all frames to show dynamic scaling
+    # Calculate scale factors for all frames to get median
     scale_factors = []
     for i, frame in enumerate(data):
         scale_factor = get_side_view_scale_factor(data, i)
@@ -101,37 +101,43 @@ def convert_side_view_metrics(metrics, data):
         print("Warning: Could not calculate scale factors for side view. Using original pixel values.")
         return metrics
     
-    # Calculate statistics for reporting
+    # Calculate median scale factor for consistent scaling
     median_scale_factor = np.median(scale_factors)
     scale_variation = np.std(scale_factors)
     
-    print(f"Side view (FRAME-SPECIFIC) scale factors:")
+    print(f"Side view (MEDIAN) scale factors:")
     print(f"  Median: {median_scale_factor:.3f} pixels/cm")
     print(f"  Range: {min(scale_factors):.3f} - {max(scale_factors):.3f} pixels/cm")
     print(f"  Std Dev: {scale_variation:.3f} pixels/cm")
     print(f"  Variation: {(scale_variation/median_scale_factor)*100:.1f}%")
+    print(f"  Using MEDIAN scale factor for all conversions: {median_scale_factor:.3f} pixels/cm")
     
     for metric_name, metric_data in metrics.items():
         if isinstance(metric_data, dict) and 'value' in metric_data:
             value = metric_data['value']
             frame_idx = metric_data.get('frame', 0)
             
-            # Get scale factor for this specific frame
+            # Get frame-specific scale factor for comparison
             frame_scale_factor = get_side_view_scale_factor(data, frame_idx)
             if frame_scale_factor is None:
-                frame_scale_factor = median_scale_factor  # Fallback to median
+                frame_scale_factor = median_scale_factor
+            
+            # Use the LARGER scale factor (more conservative conversion)
+            scale_factor = max(frame_scale_factor, median_scale_factor)
             
             # Convert pixel-based measurements to cm
             if metric_name in ['release_height', 'bound_height', 'stride_length_at_ffc']:
                 if value is not None and isinstance(value, (int, float)):
-                    converted_value = pixels_to_cm(value, frame_scale_factor)
+                    converted_value = pixels_to_cm(value, scale_factor)
                     converted_metrics[metric_name] = {
                         **metric_data,
                         'value': converted_value,
                         'unit': 'cm',
                         'original_pixels': value,
+                        'median_scale_factor': median_scale_factor,
                         'frame_scale_factor': frame_scale_factor,
-                        'median_scale_factor': median_scale_factor
+                        'used_scale_factor': scale_factor,
+                        'scale_factor_choice': 'larger_of_frame_or_median'
                     }
                 else:
                     converted_metrics[metric_name] = metric_data
@@ -139,14 +145,16 @@ def convert_side_view_metrics(metrics, data):
             # Convert speed measurements to km/hr
             elif metric_name in ['approach_speed']:
                 if value is not None and isinstance(value, (int, float)):
-                    converted_value = px_per_sec_to_km_per_hr(value, frame_scale_factor)
+                    converted_value = px_per_sec_to_km_per_hr(value, scale_factor)
                     converted_metrics[metric_name] = {
                         **metric_data,
                         'value': converted_value,
                         'unit': 'km/hr',
                         'original_px_per_sec': value,
+                        'median_scale_factor': median_scale_factor,
                         'frame_scale_factor': frame_scale_factor,
-                        'median_scale_factor': median_scale_factor
+                        'used_scale_factor': scale_factor,
+                        'scale_factor_choice': 'larger_of_frame_or_median'
                     }
                 else:
                     converted_metrics[metric_name] = metric_data
@@ -171,14 +179,16 @@ def convert_side_view_metrics(metrics, data):
             # Convert linear velocity measurements to km/hr
             elif metric_name in ['lead_arm_drop_speed']:
                 if value is not None and isinstance(value, (int, float)):
-                    converted_value = px_per_sec_to_km_per_hr(value, frame_scale_factor)
+                    converted_value = px_per_sec_to_km_per_hr(value, scale_factor)
                     converted_metrics[metric_name] = {
                         **metric_data,
                         'value': converted_value,
                         'unit': 'km/hr',
                         'original_px_per_sec': value,
+                        'median_scale_factor': median_scale_factor,
                         'frame_scale_factor': frame_scale_factor,
-                        'median_scale_factor': median_scale_factor
+                        'used_scale_factor': scale_factor,
+                        'scale_factor_choice': 'larger_of_frame_or_median'
                     }
                 else:
                     converted_metrics[metric_name] = metric_data
@@ -297,12 +307,12 @@ def convert_front_view_metrics(metrics, data):
 
 def convert_back_view_metrics(metrics, data):
     """
-    Convert back view metrics using FRAME-SPECIFIC scaling.
-    Uses hip-to-hip distance as reference for each frame.
+    Convert back view metrics using MEDIAN scaling.
+    Uses hip-to-hip distance as reference, calculating median scale factor across all frames.
     """
     converted_metrics = {}
     
-    # Calculate scale factors for all frames to show dynamic scaling
+    # Calculate scale factors for all frames to get median
     scale_factors = []
     for i, frame in enumerate(data):
         scale_factor = get_front_back_scale_factor(data, i)
@@ -313,37 +323,43 @@ def convert_back_view_metrics(metrics, data):
         print("Warning: Could not calculate scale factors for back view. Using original pixel values.")
         return metrics
     
-    # Calculate statistics for reporting
+    # Calculate median scale factor for consistent scaling
     median_scale_factor = np.median(scale_factors)
     scale_variation = np.std(scale_factors)
     
-    print(f"Back view (FRAME-SPECIFIC) scale factors:")
+    print(f"Back view (MEDIAN) scale factors:")
     print(f"  Median: {median_scale_factor:.3f} pixels/cm")
     print(f"  Range: {min(scale_factors):.3f} - {max(scale_factors):.3f} pixels/cm")
     print(f"  Std Dev: {scale_variation:.3f} pixels/cm")
     print(f"  Variation: {(scale_variation/median_scale_factor)*100:.1f}%")
+    print(f"  Using MEDIAN scale factor for all conversions: {median_scale_factor:.3f} pixels/cm")
     
     for metric_name, metric_data in metrics.items():
         if isinstance(metric_data, dict) and 'value' in metric_data:
             value = metric_data['value']
             frame_idx = metric_data.get('frame', 0)
             
-            # Get scale factor for this specific frame
+            # Get frame-specific scale factor for comparison
             frame_scale_factor = get_front_back_scale_factor(data, frame_idx)
             if frame_scale_factor is None:
-                frame_scale_factor = median_scale_factor  # Fallback to median
+                frame_scale_factor = median_scale_factor
+            
+            # Use the LARGER scale factor (more conservative conversion)
+            scale_factor = max(frame_scale_factor, median_scale_factor)
             
             # Convert pixel-based measurements to cm
             if metric_name in ['pelvic_drop_ffc']:
                 if value is not None and isinstance(value, (int, float)):
-                    converted_value = pixels_to_cm(value, frame_scale_factor)
+                    converted_value = pixels_to_cm(value, scale_factor)
                     converted_metrics[metric_name] = {
                         **metric_data,
                         'value': converted_value,
                         'unit': 'cm',
                         'original_pixels': value,
+                        'median_scale_factor': median_scale_factor,
                         'frame_scale_factor': frame_scale_factor,
-                        'median_scale_factor': median_scale_factor
+                        'used_scale_factor': scale_factor,
+                        'scale_factor_choice': 'larger_of_frame_or_median'
                     }
                 else:
                     converted_metrics[metric_name] = metric_data
